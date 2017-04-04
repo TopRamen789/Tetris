@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Tetris</title>
+	<style>
+	canvas {
+		position: absolute;
+		margin: auto;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		right: 0;
+	}
+	</style>
+</head>
+<body>
+<script>
+	var WIDTH = 250, HEIGHT = 500;
+	var UARROW=38, DARROW=40, LARROW=37, RARROW=39, SPACEBAR=32;
+	var keystate, lastEvent;
+	var canvas, ctx;
+	var pieceVelocity = 25;
+
+	var pieceFactory = (function() {
+		
+		var pieces = [];
+
+		function Tetroid() {
+			this.locked = false;
+			this.currentYPosition = 0;
+			this.currentXPosition = 0;
+		}
+
+		Tetroid.prototype.rotate = function() {
+			if(this.constructor.name == "Box") {
+				return;
+			}
+			var oldX = this.x.slice();
+			var oldY = this.y.slice();
+
+			for(var i = 0; i < this.x.length; i++) {
+				this.x[i] = oldY[i];
+				this.y[i] = oldX[i] * -1;
+			}
+		}
+
+		function Line() {
+			Tetroid.call(this);
+			this.x = [0,0,0,0];
+			this.y = [-2,-1,0,1];
+			this.color = "#DC042C";
+		}
+		Line.prototype = new Tetroid();
+		
+		function Mid() {
+			Tetroid.call(this);
+			this.x = [-1,0,0,1];
+			this.y = [0,-1,0,0];
+			this.color = "#0E90FF";
+			this.prototype = new Tetroid();
+		}
+		Mid.prototype = new Tetroid();
+
+		function Box() {
+			Tetroid.call(this);
+			this.x = [1,1,0,0];
+			this.y = [1,0,1,0];
+			this.color = "#54FF9F";
+			this.prototype = new Tetroid();
+		}
+		Box.prototype = new Tetroid();
+
+		function LShape() {
+			Tetroid.call(this);
+			this.x = [0,0,0,1];
+			this.y = [-1,0,1,1];
+			this.color = "#EEC900";
+			this.prototype = new Tetroid();
+		}
+		LShape.prototype = new Tetroid();
+
+		function JShape() {
+			Tetroid.call(this);
+			this.x = [1,0,0,0];
+			this.y = [-1,-1,0,1];
+			this.color = "#DC042C";
+			this.prototype = new Tetroid();
+		}
+		JShape.prototype = new Tetroid();
+
+		function SShape() {
+			Tetroid.call(this);
+			this.x = [-1,0,0,1];
+			this.y = [0,0,-1,-1];
+			this.color = "#0E90FF";
+			this.prototype = new Tetroid();
+		}
+		SShape.prototype = new Tetroid();
+
+		function ZShape() {
+			Tetroid.call(this);
+			this.x = [-1,0,0,1];
+			this.y = [-1,-1,0,0];
+			this.color = "#54FF9F";
+			this.prototype = new Tetroid();
+		}
+		ZShape.prototype = new Tetroid();
+
+		pieces.push(Line);
+		pieces.push(Mid);
+		pieces.push(Box);		
+		pieces.push(LShape);
+		pieces.push(JShape);
+		pieces.push(ZShape);				
+		pieces.push(SShape);
+
+		return pieces;
+	})();
+
+	var GameBoardModule = (function() {
+		function GameBoard() {
+			var gridHeight = HEIGHT/25;
+			var gridWidth = WIDTH/25;
+
+			this.grid = new Array(gridWidth);
+			for(var i = 0; i < this.grid.length; i++) {
+				//new Array(gridHeight) defines an array with 20 elements, but does not set the default value to 0.
+				this.grid[i] = [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0];
+			}
+		}
+
+		GameBoard.prototype.occupySlots = function(piece) {
+			if(piece.locked) {
+				this.grid[((WIDTH - piece.x[0]*25)-25)/25][((HEIGHT - piece.y[0]*25)-25)/25] = 1;
+				this.grid[((WIDTH - piece.x[1]*25)-25)/25][((HEIGHT - piece.y[1]*25)-25)/25] = 1;
+				this.grid[((WIDTH - piece.x[2]*25)-25)/25][((HEIGHT - piece.y[2]*25)-25)/25] = 1;
+				this.grid[((WIDTH - piece.x[3]*25)-25)/25][((HEIGHT - piece.y[3]*25)-25)/25] = 1;
+			}
+		}
+
+		return GameBoard;
+	})();
+
+	var Grid = new GameBoardModule();
+
+	var piece = new pieceFactory[Math.floor(Math.random() * pieceFactory.length)];
+	piece.currentYPosition = -100;
+	piece.currentXPosition = WIDTH/2;
+
+	var piecesInPlay = [];
+	piecesInPlay.push(piece);
+
+	function main() {
+		canvas = document.createElement("canvas");
+		canvas.width = WIDTH;
+		canvas.height = HEIGHT;
+		ctx = canvas.getContext("2d");
+		document.body.appendChild(canvas);
+
+		var gameStepTime = 1000;
+		var frameTime = 0;
+		var cumulatedFrameTime = 0;
+		lastFrameTime = Date.now();
+
+		keystate = {};
+		document.addEventListener("keydown", function(event) {
+			if(lastEvent && lastEvent.keyCode == event.keyCode) {
+				return;
+			}
+			lastEvent = event;
+			keystate[event.keyCode] = true;
+		});
+		document.addEventListener("keyup", function(event) {
+			lastEvent = null;
+			delete keystate[event.keyCode];
+		});
+
+		init();
+
+		var loop = function() {
+			controller();
+			draw();
+
+			var time = Date.now();
+			frameTime = time - lastFrameTime;
+			lastFrameTime = time;
+			cumulatedFrameTime += frameTime;
+			while(cumulatedFrameTime > gameStepTime) {
+				update();
+				draw();
+				cumulatedFrameTime -= gameStepTime;
+			}
+
+			window.requestAnimationFrame(loop);
+		}
+		window.requestAnimationFrame(loop);
+	}
+
+	function init() {
+		update();
+		draw();
+	}
+
+	function controller() {
+		if(keystate[UARROW]) {
+			piece.rotate();
+			delete keystate[UARROW];
+		}
+		if(keystate[DARROW]) {
+			piece.currentYPosition += pieceVelocity;
+			delete keystate[DARROW];
+		}
+		if(keystate[LARROW]) {
+			piece.currentXPosition -= pieceVelocity;
+			delete keystate[LARROW];
+		}
+		if(keystate[RARROW]) {
+			piece.currentXPosition += pieceVelocity;
+			delete keystate[RARROW];
+		}
+		if(keystate[SPACEBAR]) {
+			piece.currentYPosition = HEIGHT - ((Math.max(...piece.y) * 25) + 125);
+			delete keystate[SPACEBAR];
+		}
+	}
+
+	function update() {
+		var pieceTotalHeight = ((Math.max(...piece.y) * 25) + 125);
+		piece.currentYPosition += pieceVelocity;
+		piece.currentYPosition = Math.max(Math.min(piece.currentYPosition, HEIGHT - pieceTotalHeight), -50);
+		if(piece.currentYPosition == (HEIGHT - pieceTotalHeight)) {
+			piece.locked = true;
+			piece = new pieceFactory[Math.floor(Math.random() * pieceFactory.length)];
+			piece.currentXPosition = WIDTH/2;
+			piecesInPlay.push(piece);
+			Grid.occupySlots(piece);
+		}
+	}
+
+	function draw() {
+		ctx.fillStyle = "#000000";
+		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+		ctx.save();
+		for(var i = 0; i < piecesInPlay.length; i++)
+		{
+			drawPiece(piecesInPlay[i]);
+		}
+		ctx.restore();
+	}
+
+	function drawPiece(piece) {
+		ctx.fillStyle = piece.color;
+		ctx.strokeStyle = "#D7D7D7";
+		for(var i = 0; i < piece.x.length; i++) {
+			ctx.fillRect((piece.x[i]*25)+piece.currentXPosition,(piece.y[i]*25)+piece.currentYPosition+100,25,25);
+			ctx.strokeRect((piece.x[i]*25)+piece.currentXPosition,(piece.y[i]*25)+piece.currentYPosition+100,25,25);
+			//ctx.strokeRect(piece.currentXPosition-50,piece.currentYPosition+50,125,125);
+		}
+	}
+
+	main();
+</script>
+</body>
+</html>

@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+	<meta charset="UTF-8">
+	<title>Tetris</title>
+	<style>
+	canvas {
+		position: absolute;
+		margin: auto;
+		top: 0;
+		bottom: 0;
+		left: 0;
+		right: 0;
+	}
+	</style>
+</head>
+<body>
+<script>
+	var WIDTH=350, HEIGHT=600;
+	var UpArrow=38, DownArrow=40, LeftArrow=37, RightArrow=39, SpaceBar=32;
+	var canvas, ctx, keystate, lastEvent;
+	var currentPiece;
+
+	var lineShape, boxShape, midShape, sShape, zShape, rShape, lShape;
+	var piecesCollection = [];
+
+	var pieceTypes = [];
+	lineShape = {
+		x1: 1,
+		y1: 1,
+		x2: 2,
+		y3: 1,
+		x3: 3,
+		y3: 1,
+		x4: 4,
+		y4: 1,
+		color: "#DC143C"
+	};
+
+	boxShape = {
+		x1: 1,
+		y1: 1,
+		x2: 2,
+		y3: 1,
+		x3: 2,
+		y3: 2,
+		x4: 1,
+		y4: 2,
+		color: "#1E90FF"
+	};
+
+	midShape = {
+		x1: 1,
+		y1: 1,
+		x2: 2,
+		y3: 1,
+		x3: 2,
+		y3: 2,
+		x4: 3,
+		y4: 1,
+		color: "#54FF9F"
+	};
+
+	sShape = {
+		x1: 1,
+		y1: 1,
+		x2: 2,
+		y3: 1,
+		x3: 2,
+		y3: 2,
+		x4: 3,
+		y4: 2,
+		color: "#EEC900"
+	};
+
+	zShape = {
+		x1: 1,
+		y1: 2,
+		x2: 2,
+		y3: 1,
+		x3: 2,
+		y3: 2,
+		x4: 3,
+		y4: 1,
+		color: "#DC143C"
+	};
+
+	rShape = {
+		x1: 1,
+		y1: 1,
+		x2: 1,
+		y3: 2,
+		x3: 2,
+		y3: 1,
+		x4: 3,
+		y4: 1,
+		color: "#1E90FF"
+	};
+	
+	lShape = {
+		x1: 1,
+		y1: 1,
+		x2: 2,
+		y3: 1,
+		x3: 3,
+		y3: 1,
+		x4: 3,
+		y4: 2,
+		color: "#54FF9F"
+	};
+
+	pieceTypes.push(lineShape);
+	pieceTypes.push(boxShape);
+	pieceTypes.push(midShape);
+	pieceTypes.push(zShape);
+	pieceTypes.push(sShape);
+	pieceTypes.push(lShape);
+	pieceTypes.push(rShape);
+
+	player = {
+		piece: null,
+
+		controller: function() {
+			if(keystate[DownArrow]) {
+				this.piece.y += this.piece.vel;
+				delete keystate[DownArrow];
+			}
+			if(keystate[LeftArrow]) {
+				this.piece.x -= this.piece.vel;
+				delete keystate[LeftArrow];
+			}
+			if(keystate[RightArrow]) {
+				this.piece.x += this.piece.vel;
+				delete keystate[RightArrow];
+			}
+			if(keystate[SpaceBar]) { 
+				var prevWidth = this.piece.width;
+				this.piece.width = this.piece.height;
+				this.piece.height = prevWidth;
+				delete keystate[SpaceBar];
+			}
+			
+			this.piece.x = Math.max(Math.min(this.piece.x, WIDTH - this.piece.width), 0);
+			this.piece.y = Math.max(Math.min(this.piece.y, HEIGHT - this.piece.height), 0);
+		},
+		setNewPiece: function(newPiece) {
+			this.piece = newPiece;
+		}
+	};
+
+	//this should take just one argument
+	//which changes the kind of piece it is
+	//it'd also probably be easier to create an array with indexes that are already taken up
+	//for some sort of collision detection...
+	//but perhaps this will work.
+	function Piece(type) {
+		this.x = WIDTH/2;
+		this.y = 0;
+		
+		this.vel = 25;
+		this.width = 25;
+		this.height = 100;
+
+		this.update = function() {
+			this.vel = 25;
+			
+			if(keystate[UpArrow]) { this.y -= this.vel/2; }
+			
+			this.y += this.vel;
+
+			this.y = Math.max(Math.min(this.y, HEIGHT - this.height), 0);
+		};
+
+		this.draw = function() {
+			ctx.fillStyle = type.color;
+			ctx.fillRect(this.x, this.y, this.width, this.height);
+			
+			ctx.strokeStyle = "#D7D7D7";
+			ctx.lineWidth = 2;
+
+			//good for one rotation.
+			//needs modification
+			ctx.strokeRect(this.x, this.y, this.width, this.height);
+			ctx.strokeRect(this.x, this.y+25, this.width, this.height-75);
+			ctx.strokeRect(this.x, this.y+50, this.width, this.height-75);
+		};
+	};
+
+	function main() {
+		canvas = document.createElement("canvas");
+		canvas.width = WIDTH;
+		canvas.height = HEIGHT;
+		ctx = canvas.getContext("2d");
+		document.body.appendChild(canvas);
+
+		var gameStepTime = 1000;
+		var frameTime = 0;
+		var cumulatedFrameTime = 0;
+		lastFrameTime = Date.now();
+
+		keystate = {};
+		document.addEventListener("keydown", function(event) {
+			if(lastEvent && lastEvent.keyCode == event.keyCode) {
+				return;
+			}
+			lastEvent = event;
+			keystate[event.keyCode] = true;
+		});
+		document.addEventListener("keyup", function(event) {
+			lastEvent = null;
+			delete keystate[event.keyCode];
+		});
+
+		//init();
+		newPiece();
+
+		var loop = function() {
+			draw();
+			controller();
+			
+			var time = Date.now();
+			frameTime = time - lastFrameTime;
+			lastFrameTime = time;
+			cumulatedFrameTime += frameTime;
+			while(cumulatedFrameTime > gameStepTime) {
+				update();
+				draw();
+				cumulatedFrameTime -= gameStepTime;
+			}
+
+			if(currentPiece.y == HEIGHT - currentPiece.height) {
+				newPiece();
+			}
+
+			window.requestAnimationFrame(loop);
+		};
+		window.requestAnimationFrame(loop);
+	};
+
+	function newPiece() {
+		currentPiece = new Piece(pieceTypes[Math.floor(Math.random() * pieceTypes.length)]);
+		player.setNewPiece(currentPiece);
+		piecesCollection.push(currentPiece);
+	};
+
+	function update() {
+		currentPiece.update();
+	};
+
+	function draw() {
+		//ctx.strokeRect(0, 0, WIDTH, HEIGHT);
+		ctx.fillRect(0, 0, WIDTH, HEIGHT);
+
+		ctx.save();
+
+		//ctx.strokeStyle = "#000000";
+		ctx.fillStyle = "#fff";
+
+		for(var i = 0; i < piecesCollection.length; i++)
+		{
+			piecesCollection[i].draw();
+		}
+
+		ctx.restore();
+	};
+	
+	function controller() {
+		player.controller();
+	};
+
+	main();
+</script>
+</body>
+</html>
